@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BD TourneyHub — Esports Tournament & Admin Platform</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Firebase Compat SDKs (Optional Cloud Sync) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              500: '#f97316',
+              600: '#ea580c',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #090d16; color: #f8fafc; }
+    .glass { background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="sticky top-0 z-40 glass border-b border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <!-- Logo & Mode Badge -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-lg shadow-orange-500/20">
+          <i data-lucide="flame" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-extrabold text-lg tracking-tight text-white">BD Tourney<span class="text-orange-500">Hub</span></h1>
+            <span id="dbModeBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              Local Demo Mode
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">Daily Free Fire & Esports Custom Rooms</p>
+        </div>
+      </div>
+
+      <!-- User Switcher & Role Toggle -->
+      <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <!-- Active Player Selector (For easy testing without login) -->
+        <div class="flex items-center bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs">
+          <i data-lucide="user" class="w-3.5 h-3.5 text-orange-400 mr-1.5"></i>
+          <span class="text-slate-400 mr-1">Player:</span>
+          <select id="userSelect" onchange="switchUser(this.value)" class="bg-transparent text-white font-semibold focus:outline-none cursor-pointer"></select>
+          <button onclick="openNewUserModal()" title="Create Test Player" class="ml-2 text-orange-400 hover:text-orange-300 font-bold">+</button>
+        </div>
+
+        <!-- Wallet Pill -->
+        <button onclick="switchTab('wallet')" class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg transition">
+          <i data-lucide="wallet" class="w-4 h-4 text-emerald-400"></i>
+          <span class="text-xs text-slate-300">Balance:</span>
+          <span id="navBalance" class="text-sm font-bold text-emerald-400">৳0</span>
+        </button>
+
+        <!-- View Switcher: Player vs Admin -->
+        <div class="flex bg-slate-900 p-1 rounded-lg border border-slate-700">
+          <button id="btnPlayerView" onclick="setRoleView('player')" class="px-3 py-1 rounded-md text-xs font-semibold bg-orange-500 text-white transition">
+            Player View
+          </button>
+          <button id="btnAdminView" onclick="setRoleView('admin')" class="px-3 py-1 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-1">
+            <i data-lucide="shield" class="w-3.5 h-3.5"></i> Admin Panel
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+
+    <!-- ==================== PLAYER VIEW ==================== -->
+    <div id="playerView" class="space-y-6">
+      
+      <!-- Sub-Navigation Tabs -->
+      <div class="flex items-center justify-between flex-wrap gap-3 border-b border-slate-800 pb-3">
+        <div class="flex gap-2">
+          <button onclick="switchTab('matches')" id="tabMatches" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-orange-500 text-white flex items-center gap-2">
+            <i data-lucide="swords" class="w-4 h-4"></i> Tournaments
+          </button>
+          <button onclick="switchTab('mymatches')" id="tabMyMatches" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-slate-300 hover:bg-slate-800 flex items-center gap-2">
+            <i data-lucide="ticket" class="w-4 h-4"></i> My Joined (<span id="myJoinedCount">0</span>)
+          </button>
+          <button onclick="switchTab('wallet')" id="tabWallet" class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-slate-300 hover:bg-slate-800 flex items-center gap-2">
+            <i data-lucide="credit-card" class="w-4 h-4"></i> Wallet & bKash
+          </button>
+        </div>
+
+        <!-- Filter Pills -->
+        <div id="matchFilters" class="flex items-center gap-2 text-xs">
+          <button onclick="setFilter('ALL')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-800 text-orange-400 font-semibold border border-orange-500/40" data-filter="ALL">All</button>
+          <button onclick="setFilter('UPCOMING')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white" data-filter="UPCOMING">Upcoming</button>
+          <button onclick="setFilter('LIVE')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white" data-filter="LIVE">Live / Room Ready</button>
+          <button onclick="setFilter('COMPLETED')" class="filter-btn px-3 py-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white" data-filter="COMPLETED">Completed</button>
+        </div>
+      </div>
+
+      <!-- TAB 1: TOURNAMENTS GRID -->
+      <section id="secMatches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></section>
+
+      <!-- TAB 2: MY JOINED MATCHES -->
+      <section id="secMyMatches" class="hidden space-y-4"></section>
+
+      <!-- TAB 3: WALLET & TRANSACTIONS -->
+      <section id="secWallet" class="hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Balance & Deposit Form -->
+        <div class="lg:col-span-1 space-y-4">
+          <div class="glass rounded-2xl p-5 border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950">
+            <p class="text-xs uppercase tracking-wider text-slate-400">Available Wallet Balance</p>
+            <h2 id="walletBigBalance" class="text-4xl font-extrabold text-emerald-400 mt-1">৳0</h2>
+            <div class="mt-3 text-xs text-slate-400 flex items-center justify-between border-t border-slate-800 pt-3">
+              <span>Player IGN: <strong id="walletUserIgn" class="text-white"></strong></span>
+              <span>UID: <strong id="walletUserUid" class="text-orange-400"></strong></span>
+            </div>
+          </div>
+
+          <!-- Add Money / Withdraw Card -->
+          <div class="glass rounded-2xl p-5 space-y-4">
+            <h3 class="font-bold text-base flex items-center gap-2">
+              <i data-lucide="send" class="w-4 h-4 text-orange-500"></i> bKash / Nagad Wallet Request
+            </h3>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              Send Money to Admin Merchant: <span class="text-orange-400 font-semibold">01700-000000 (bKash/Nagad)</span> and submit your TrxID below, or test instantly!
+            </p>
+            <div class="space-y-3 text-sm">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Request Type</label>
+                <select id="txType" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white">
+                  <option value="DEPOSIT">Add Money (Deposit)</option>
+                  <option value="WITHDRAW">Withdraw Winnings</option>
+                </select>
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="text-xs text-slate-400 block mb-1">Method</label>
+                  <select id="txMethod" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white">
+                    <option value="bKash">bKash</option>
+                    <option value="Nagad">Nagad</option>
+                    <option value="Rocket">Rocket</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs text-slate-400 block mb-1">Amount (৳)</label>
+                  <input id="txAmount" type="number" placeholder="100" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+                </div>
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Sender Number / TrxID</label>
+                <input id="txRef" type="text" placeholder="e.g. 017XXXXXXXX / Trx98A7B" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+              <button onclick="submitWalletRequest()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-lg transition">
+                Submit Request to Admin
+              </button>
+              <button onclick="instantDemoTopup()" class="w-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-semibold py-2 rounded-lg text-xs transition">
+                ⚡ Demo Trick: Add ৳200 Instantly (No Admin Wait)
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transaction History -->
+        <div class="lg:col-span-2 glass rounded-2xl p-5">
+          <h3 class="font-bold text-base mb-4 flex items-center gap-2">
+            <i data-lucide="history" class="w-4 h-4 text-orange-500"></i> My Wallet Transactions
+          </h3>
+          <div id="playerTxList" class="space-y-2.5"></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ==================== ADMIN PANEL VIEW ==================== -->
+    <div id="adminView" class="hidden space-y-8">
+      
+      <!-- Top Admin Stats -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass p-4 rounded-xl border-l-4 border-orange-500">
+          <span class="text-xs text-slate-400">Total Tournaments</span>
+          <p id="statTotalMatches" class="text-2xl font-extrabold mt-1">0</p>
+        </div>
+        <div class="glass p-4 rounded-xl border-l-4 border-emerald-500">
+          <span class="text-xs text-slate-400">Registered Players</span>
+          <p id="statTotalPlayers" class="text-2xl font-extrabold mt-1">0</p>
+        </div>
+        <div class="glass p-4 rounded-xl border-l-4 border-amber-500">
+          <span class="text-xs text-slate-400">Pending Wallet Requests</span>
+          <p id="statPendingTx" class="text-2xl font-extrabold mt-1 text-amber-400">0</p>
+        </div>
+        <div class="glass p-4 rounded-xl border-l-4 border-blue-500 flex flex-col justify-between">
+          <span class="text-xs text-slate-400">Database Mode</span>
+          <div class="flex items-center justify-between mt-1">
+            <span id="statDbLabel" class="text-sm font-bold text-emerald-400">Local Storage</span>
+            <button onclick="resetDemoData()" class="text-[11px] bg-red-500/20 text-red-400 px-2 py-1 rounded hover:bg-red-500/30">Reset Demo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- CREATE NEW TOURNAMENT FORM -->
+        <div class="lg:col-span-1 glass rounded-2xl p-5 h-fit space-y-4">
+          <h3 class="font-bold text-base flex items-center gap-2 text-orange-400">
+            <i data-lucide="plus-circle" class="w-5 h-5"></i> Create New Tournament
+          </h3>
+          <div class="space-y-3 text-sm">
+            <div>
+              <label class="text-xs text-slate-400 block mb-1">Tournament Title</label>
+              <input id="admTitle" type="text" placeholder="e.g. Free Fire Squad Rush #105" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Map</label>
+                <select id="admMap" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white">
+                  <option value="Bermuda">Bermuda</option>
+                  <option value="Purgatory">Purgatory</option>
+                  <option value="Alpine">Alpine</option>
+                  <option value="Nexterra">Nexterra</option>
+                  <option value="Clash Squad">Clash Squad (4v4)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Mode</label>
+                <select id="admMode" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white">
+                  <option value="Solo">Solo</option>
+                  <option value="Duo">Duo</option>
+                  <option value="Squad">Squad</option>
+                </select>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Entry Fee (৳)</label>
+                <input id="admFee" type="number" value="20" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Total Prize (৳)</label>
+                <input id="admPrize" type="number" value="500" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Per Kill (৳)</label>
+                <input id="admKill" type="number" value="10" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Max Slots</label>
+                <input id="admSlots" type="number" value="48" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Match Time</label>
+                <input id="admTime" type="text" placeholder="Tonight 9:30 PM" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+              </div>
+            </div>
+            <button onclick="adminCreateMatch()" class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2.5 rounded-lg transition">
+              Publish Tournament
+            </button>
+          </div>
+        </div>
+
+        <!-- MANAGE TOURNAMENTS & WALLET REQUESTS -->
+        <div class="lg:col-span-2 space-y-6">
+          
+          <!-- Manage Matches -->
+          <div class="glass rounded-2xl p-5">
+            <h3 class="font-bold text-base mb-4 flex items-center gap-2">
+              <i data-lucide="settings" class="w-4 h-4 text-orange-500"></i> Manage Tournaments (Room ID, Players & Results)
+            </h3>
+            <div id="adminMatchesList" class="space-y-4"></div>
+          </div>
+
+          <!-- Approve Wallet Requests -->
+          <div class="glass rounded-2xl p-5">
+            <h3 class="font-bold text-base mb-4 flex items-center gap-2">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i> Pending Wallet Requests (bKash / Nagad)
+            </h3>
+            <div id="adminTxList" class="space-y-2.5"></div>
+          </div>
+
+          <!-- Optional Firebase Cloud Sync Setup -->
+          <div class="glass rounded-2xl p-5 border border-orange-500/30">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-bold text-base flex items-center gap-2 text-orange-400">
+                <i data-lucide="database" class="w-4 h-4"></i> Optional: Connect Firebase Firestore
+              </h3>
+              <button onclick="clearFirebaseConfig()" class="text-xs text-slate-400 hover:text-red-400">Switch back to Local Demo</button>
+            </div>
+            <p class="text-xs text-slate-400 mb-3">
+              This app works 100% without Firebase using browser storage. When you want real-time cloud sync across all players, paste your Firebase Web Config JSON object below:
+            </p>
+            <textarea id="fbConfigInput" rows="4" placeholder='{"apiKey": "...", "authDomain": "...", "projectId": "..."}' class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs font-mono text-emerald-400"></textarea>
+            <button onclick="saveFirebaseConfig()" class="mt-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition">
+              Connect & Sync with Firebase
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: CREATE NEW TEST PLAYER -->
+  <div id="userModal" class="fixed inset-0 z-50 hidden bg-black/75 flex items-center justify-center p-4">
+    <div class="glass max-w-sm w-full rounded-2xl p-6 space-y-4">
+      <h3 class="font-bold text-lg">Add / Switch Test Player</h3>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Player Name / IGN</label>
+          <input id="newIgn" type="text" placeholder="e.g. BD_Sniper99" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">In-Game UID</label>
+          <input id="newUid" type="text" placeholder="e.g. 284910482" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Starting Demo Balance (৳)</label>
+          <input id="newBal" type="number" value="150" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white" />
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button onclick="closeNewUserModal()" class="flex-1 bg-slate-800 py-2 rounded-lg font-semibold">Cancel</button>
+          <button onclick="createNewUser()" class="flex-1 bg-orange-500 py-2 rounded-lg font-bold text-white">Create Player</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADMIN PAYOUT & PLAYERS LIST -->
+  <div id="playersModal" class="fixed inset-0 z-50 hidden bg-black/75 flex items-center justify-center p-4">
+    <div class="glass max-w-xl w-full rounded-2xl p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 id="pmTitle" class="font-bold text-lg">Joined Players & Prize Payout</h3>
+        <button onclick="closePlayersModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div id="pmList" class="space-y-3"></div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden bg-slate-900 border border-orange-500 text-white px-4 py-3 rounded-xl shadow-2xl text-sm font-medium"></div>
+
+  <!-- APPLICATION LOGIC -->
+  <script>
+    // ================== DEFAULT SEED DATA (FOR NO-FIREBASE DEMO MODE) ==================
+    const DEFAULT_STATE = {
+      users: [
+        { id: 'u1', ign: 'Nirob_FF', uid: '48291038', balance: 250 },
+        { id: 'u2', ign: 'Sakib_Pro', uid: '91827364', balance: 120 },
+        { id: 'u3', ign: 'Crimson_BD', uid: '77482910', balance: 500 }
+      ],
+      activeUserId: 'u1',
+      tournaments: [
+        {
+          id: 't1',
+          title: 'Free Fire Solo Battle Royale #41',
+          map: 'Bermuda',
+          mode: 'Solo',
+          entryFee: 20,
+          prizePool: 500,
+          perKill: 10,
+          maxSlots: 48,
+          time: 'Tonight 9:00 PM',
+          status: 'LIVE',
+          roomId: '88492019',
+          roomPass: '9922',
+          participants: [
+            { userId: 'u1', ign: 'Nirob_FF', uid: '48291038', kills: 0, paidPrize: 0 },
+            { userId: 'u2', ign: 'Sakib_Pro', uid: '91827364', kills: 0, paidPrize: 0 }
+          ]
+        },
+        {
+          id: 't2',
+          title: 'Squad Rush Championship #42',
+          map: 'Purgatory',
+          mode: 'Squad',
+          entryFee: 50,
+          prizePool: 1500,
+          perKill: 15,
+          maxSlots: 48,
+          time: 'Tomorrow 8:30 PM',
+          status: 'UPCOMING',
+          roomId: '',
+          roomPass: '',
+          participants: [
+            { userId: 'u3', ign: 'Crimson_BD', uid: '77482910', kills: 0, paidPrize: 0 }
+          ]
+        },
+        {
+          id: 't3',
+          title: 'Clash Squad 4v4 Custom #40',
+          map: 'Clash Squad',
+          mode: 'Squad',
+          entryFee: 30,
+          prizePool: 400,
+          perKill: 0,
+          maxSlots: 8,
+          time: 'Yesterday 10:00 PM',
+          status: 'COMPLETED',
+          roomId: '11029384',
+          roomPass: 'done',
+          participants: [
+            { userId: 'u1', ign: 'Nirob_FF', uid: '48291038', kills: 7, paidPrize: 200 }
+          ]
+        }
+      ],
+      transactions: [
+        { id: 'tx1', userId: 'u1', ign: 'Nirob_FF', type: 'DEPOSIT', method: 'bKash', amount: 200, ref: 'Trx88492A', status: 'APPROVED', time: '2 hours ago' },
+        { id: 'tx2', userId: 'u2', ign: 'Sakib_Pro', type: 'DEPOSIT', method: 'Nagad', amount: 100, ref: '01711-XXXXXX / Trx91B', status: 'PENDING', time: '10 mins ago' }
+      ]
+    };
+
+    let state = loadState();
+    let currentFilter = 'ALL';
+    let currentTab = 'matches';
+    let firestoreDb = null;
+
+    function loadState() {
+      const saved = localStorage.getItem('bd_tourney_state_v1');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+      return JSON.parse(JSON.stringify(DEFAULT_STATE));
+    }
+
+    async function saveState() {
+      localStorage.setItem('bd_tourney_state_v1', JSON.stringify(state));
+      if (firestoreDb) {
+        try {
+          await firestoreDb.collection('app_state').doc('global').set(state);
+        } catch (err) {
+          console.warn('Firestore sync error:', err);
+        }
+      }
+      renderAll();
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.remove('hidden');
+      setTimeout(() => t.classList.add('hidden'), 3200);
+    }
+
+    function getActiveUser() {
+      return state.users.find(u => u.id === state.activeUserId) || state.users[0];
+    }
+
+    // ================== OPTIONAL FIREBASE INITIALIZATION ==================
+    function initFirebaseIfConfigured() {
+      const raw = localStorage.getItem('bd_tourney_fb_config');
+      if (!raw) return;
+      try {
+        const cfg = JSON.parse(raw);
+        document.getElementById('fbConfigInput').value = JSON.stringify(cfg, null, 2);
+        if (!firebase.apps.length) {
+          firebase.initializeApp(cfg);
+        }
+        firestoreDb = firebase.firestore();
+        document.getElementById('dbModeBadge').textContent = 'Firebase Live Mode';
+        document.getElementById('dbModeBadge').className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40';
+        document.getElementById('statDbLabel').textContent = 'Firebase Cloud';
+
+        firestoreDb.collection('app_state').doc('global').onSnapshot(doc => {
+          if (doc.exists) {
+            const remote = doc.data();
+            remote.activeUserId = state.activeUserId;
+            state = remote;
+            localStorage.setItem('bd_tourney_state_v1', JSON.stringify(state));
+            renderAll();
+          } else {
+            saveState();
+          }
+        });
+      } catch (e) {
+        console.warn('Invalid Firebase config:', e);
+      }
+    }
+
+    function saveFirebaseConfig() {
+      const val = document.getElementById('fbConfigInput').value.trim();
+      try {
+        const parsed = JSON.parse(val);
+        if (!parsed.apiKey || !parsed.projectId) throw new Error('Missing apiKey or projectId');
+        localStorage.setItem('bd_tourney_fb_config', JSON.stringify(parsed));
+        showToast('Firebase Config Saved! Reloading...');
+        setTimeout(() => location.reload(), 1000);
+      } catch (e) {
+        showToast('Invalid JSON! Please paste a valid Firebase config object.');
+      }
+    }
+
+    function clearFirebaseConfig() {
+      localStorage.removeItem('bd_tourney_fb_config');
+      showToast('Switched back to Local Demo Mode! Reloading...');
+      setTimeout(() => location.reload(), 800);
+    }
+
+    function resetDemoData() {
+      localStorage.removeItem('bd_tourney_state_v1');
+      state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      saveState();
+      showToast('Demo data reset to fresh state!');
+    }
+
+    // ================== NAVIGATION & USER SWITCHING ==================
+    function setRoleView(role) {
+      const pView = document.getElementById('playerView');
+      const aView = document.getElementById('adminView');
+      const bP = document.getElementById('btnPlayerView');
+      const bA = document.getElementById('btnAdminView');
+      if (role === 'admin') {
+        pView.classList.add('hidden');
+        aView.classList.remove('hidden');
+        bA.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-orange-500 text-white transition flex items-center gap-1';
+        bP.className = 'px-3 py-1 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition';
+      } else {
+        aView.classList.add('hidden');
+        pView.classList.remove('hidden');
+        bP.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-orange-500 text-white transition';
+        bA.className = 'px-3 py-1 rounded-md text-xs font-semibold text-slate-400 hover:text-white transition flex items-center gap-1';
+      }
+      renderAll();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('secMatches').classList.toggle('hidden', tab !== 'matches');
+      document.getElementById('secMyMatches').classList.toggle('hidden', tab !== 'mymatches');
+      document.getElementById('secWallet').classList.toggle('hidden', tab !== 'wallet');
+      document.getElementById('matchFilters').classList.toggle('hidden', tab !== 'matches');
+
+      const tabs = { matches: 'tabMatches', mymatches: 'tabMyMatches', wallet: 'tabWallet' };
+      Object.entries(tabs).forEach(([k, id]) => {
+        const el = document.getElementById(id);
+        if (k === tab) {
+          el.className = 'tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-orange-500 text-white flex items-center gap-2';
+        } else {
+          el.className = 'tab-btn px-4 py-2 rounded-lg text-sm font-semibold bg-slate-900 text-slate-300 hover:bg-slate-800 flex items-center gap-2';
+        }
+      });
+      renderAll();
+    }
+
+    function setFilter(f) {
+      currentFilter = f;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        if (btn.dataset.filter === f) {
+          btn.className = 'filter-btn px-3 py-1.5 rounded-lg bg-slate-800 text-orange-400 font-semibold border border-orange-500/40';
+        } else {
+          btn.className = 'filter-btn px-3 py-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white';
+        }
+      });
+      renderAll();
+    }
+
+    function switchUser(uid) {
+      state.activeUserId = uid;
+      saveState();
+      showToast('Switched active player to ' + getActiveUser().ign);
+    }
+
+    function openNewUserModal() { document.getElementById('userModal').classList.remove('hidden'); }
+    function closeNewUserModal() { document.getElementById('userModal').classList.add('hidden'); }
+
+    function createNewUser() {
+      const ign = document.getElementById('newIgn').value.trim();
+      const uid = document.getElementById('newUid').value.trim();
+      const bal = Number(document.getElementById('newBal').value) || 0;
+      if (!ign || !uid) return showToast('Please enter both IGN and UID!');
+      const newU = { id: 'u' + Date.now(), ign, uid, balance: bal };
+      state.users.push(newU);
+      state.activeUserId = newU.id;
+      closeNewUserModal();
+      saveState();
+      showToast('Created and switched to ' + ign);
+    }
+
+    // ================== PLAYER ACTIONS ==================
+    function joinTournament(tId) {
+      const user = getActiveUser();
+      const t = state.tournaments.find(x => x.id === tId);
+      if (!t) return;
+      if (t.status === 'COMPLETED') return showToast('This match has already ended.');
+      if (t.participants.some(p => p.userId === user.id)) return showToast('You have already joined this tournament!');
+      if (t.participants.length >= t.maxSlots) return showToast('Sorry, room slots are full!');
+      if (user.balance < t.entryFee) {
+        showToast('Insufficient balance! Please add money in the Wallet tab.');
+        switchTab('wallet');
+        return;
+      }
+
+      user.balance -= t.entryFee;
+      t.participants.push({ userId: user.id, ign: user.ign, uid: user.uid, kills: 0, paidPrize: 0 });
+      state.transactions.unshift({
+        id: 'tx' + Date.now(),
+        userId: user.id,
+        ign: user.ign,
+        type: 'ENTRY_FEE',
+        method: 'Wallet',
+        amount: -t.entryFee,
+        ref: t.title,
+        status: 'APPROVED',
+        time: 'Just now'
+      });
+      saveState();
+      showToast('Successfully joined ' + t.title + '!');
+    }
+
+    function copyText(txt, label) {
+      navigator.clipboard.writeText(txt);
+      showToast('Copied ' + label + ': ' + txt);
+    }
+
+    function submitWalletRequest() {
+      const user = getActiveUser();
+      const type = document.getElementById('txType').value;
+      const method = document.getElementById('txMethod').value;
+      const amount = Number(document.getElementById('txAmount').value);
+      const ref = document.getElementById('txRef').value.trim();
+
+      if (!amount || amount <= 0 || !ref) return showToast('Enter valid amount and number/TrxID!');
+      if (type === 'WITHDRAW' && user.balance < amount) return showToast('Insufficient wallet balance to withdraw!');
+
+      if (type === 'WITHDRAW') {
+        user.balance -= amount;
+      }
+
+      state.transactions.unshift({
+        id: 'tx' + Date.now(),
+        userId: user.id,
+        ign: user.ign,
+        type,
+        method,
+        amount,
+        ref,
+        status: 'PENDING',
+        time: 'Just now'
+      });
+
+      document.getElementById('txAmount').value = '';
+      document.getElementById('txRef').value = '';
+      saveState();
+      showToast('Request submitted! Switch to Admin Panel to approve it.');
+    }
+
+    function instantDemoTopup() {
+      const user = getActiveUser();
+      user.balance += 200;
+      state.transactions.unshift({
+        id: 'tx' + Date.now(),
+        userId: user.id,
+        ign: user.ign,
+        type: 'DEPOSIT',
+        method: 'Instant Demo',
+        amount: 200,
+        ref: 'DEMO_TOPUP',
+        status: 'APPROVED',
+        time: 'Just now'
+      });
+      saveState();
+      showToast('৳200 added to ' + user.ign + ' wallet!');
+    }
+
+    // ================== ADMIN ACTIONS ==================
+    function adminCreateMatch() {
+      const title = document.getElementById('admTitle').value.trim();
+      const map = document.getElementById('admMap').value;
+      const mode = document.getElementById('admMode').value;
+      const entryFee = Number(document.getElementById('admFee').value) || 0;
+      const prizePool = Number(document.getElementById('admPrize').value) || 0;
+      const perKill = Number(document.getElementById('admKill').value) || 0;
+      const maxSlots = Number(document.getElementById('admSlots').value) || 48;
+      const time = document.getElementById('admTime').value.trim() || 'Tonight 9:00 PM';
+
+      if (!title) return showToast('Please enter a tournament title!');
+
+      state.tournaments.unshift({
+        id: 't' + Date.now(),
+        title,
+        map,
+        mode,
+        entryFee,
+        prizePool,
+        perKill,
+        maxSlots,
+        time,
+        status: 'UPCOMING',
+        roomId: '',
+        roomPass: '',
+        participants: []
+      });
+
+      document.getElementById('admTitle').value = '';
+      saveState();
+      showToast('Tournament published!');
+    }
+
+    function adminUpdateRoom(tId) {
+      const t = state.tournaments.find(x => x.id === tId);
+      if (!t) return;
+      t.roomId = document.getElementById('rid_' + tId).value.trim();
+      t.roomPass = document.getElementById('rpass_' + tId).value.trim();
+      t.status = document.getElementById('rstat_' + tId).value;
+      saveState();
+      showToast('Updated Room ID & Status for ' + t.title);
+    }
+
+    function adminDeleteMatch(tId) {
+      state.tournaments = state.tournaments.filter(x => x.id !== tId);
+      saveState();
+      showToast('Tournament deleted.');
+    }
+
+    function openPlayersModal(tId) {
+      const t = state.tournaments.find(x => x.id === tId);
+      if (!t) return;
+      document.getElementById('pmTitle').textContent = `${t.title} — Players (${t.participants.length}/${t.maxSlots})`;
+      const list = document.getElementById('pmList');
+
+      if (t.participants.length === 0) {
+        list.innerHTML = `<p class="text-sm text-slate-400 py-4 text-center">No players have joined this tournament yet.</p>`;
+      } else {
+        list.innerHTML = t.participants.map((p, idx) => `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="font-bold text-sm text-white">#${idx + 1} ${p.ign} <span class="text-xs text-orange-400 font-mono">(UID: ${p.uid})</span></p>
+              <p class="text-xs text-slate-400">Paid Prize so far: <strong class="text-emerald-400">৳${p.paidPrize || 0}</strong></p>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <div>
+                <label class="text-[10px] text-slate-400 block">Kills (৳${t.perKill}/kill)</label>
+                <input id="kills_${t.id}_${p.userId}" type="number" value="${p.kills || 0}" class="w-16 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white" />
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400 block">Bonus/Booyah (৳)</label>
+                <input id="bonus_${t.id}_${p.userId}" type="number" value="0" class="w-20 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white" />
+              </div>
+              <button onclick="adminPayPlayer('${t.id}', '${p.userId}')" class="mt-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg">
+                Pay Winner
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+      document.getElementById('playersModal').classList.remove('hidden');
+    }
+
+    function closePlayersModal() {
+      document.getElementById('playersModal').classList.add('hidden');
+    }
+
+    function adminPayPlayer(tId, userId) {
+      const t = state.tournaments.find(x => x.id === tId);
+      const p = t.participants.find(x => x.userId === userId);
+      const u = state.users.find(x => x.id === userId);
+      if (!t || !p || !u) return;
+
+      const kills = Number(document.getElementById(`kills_${tId}_${userId}`).value) || 0;
+      const bonus = Number(document.getElementById(`bonus_${tId}_${userId}`).value) || 0;
+      const totalReward = (kills * t.perKill) + bonus;
+
+      if (totalReward <= 0) return showToast('Enter kills or bonus amount greater than 0!');
+
+      p.kills = kills;
+      p.paidPrize = (p.paidPrize || 0) + totalReward;
+      u.balance += totalReward;
+
+      state.transactions.unshift({
+        id: 'tx' + Date.now(),
+        userId: u.id,
+        ign: u.ign,
+        type: 'WINNINGS',
+        method: 'Match Prize',
+        amount: totalReward,
+        ref: `${t.title} (${kills} Kills)`,
+        status: 'APPROVED',
+        time: 'Just now'
+      });
+
+      saveState();
+      openPlayersModal(tId);
+      showToast(`Credited ৳${totalReward} to ${u.ign}'s wallet!`);
+    }
+
+    function adminHandleTx(txId, decision) {
+      const tx = state.transactions.find(x => x.id === txId);
+      if (!tx || tx.status !== 'PENDING') return;
+      const u = state.users.find(x => x.id === tx.userId);
+
+      tx.status = decision;
+      if (decision === 'APPROVED' && tx.type === 'DEPOSIT' && u) {
+        u.balance += tx.amount;
+      } else if (decision === 'REJECTED' && tx.type === 'WITHDRAW' && u) {
+        u.balance += tx.amount; // Refund held withdrawal
+      }
+      saveState();
+      showToast(`Transaction ${decision}!`);
+    }
+
+    // ================== UI RENDERING ==================
+    function renderAll() {
+      const activeUser = getActiveUser();
+
+      // 1. User Switcher & Header Balance
+      const userSelect = document.getElementById('userSelect');
+      userSelect.innerHTML = state.users.map(u =>
+        `<option value="${u.id}" ${u.id === activeUser.id ? 'selected' : ''}>${u.ign} (৳${u.balance})</option>`
+      ).join('');
+      document.getElementById('navBalance').textContent = `৳${activeUser.balance}`;
+      document.getElementById('walletBigBalance').textContent = `৳${activeUser.balance}`;
+      document.getElementById('walletUserIgn').textContent = activeUser.ign;
+      document.getElementById('walletUserUid').textContent = activeUser.uid;
+
+      // 2. My Joined Matches Count
+      const myJoined = state.tournaments.filter(t => t.participants.some(p => p.userId === activeUser.id));
+      document.getElementById('myJoinedCount').textContent = myJoined.length;
+
+      // 3. Render Tournaments Grid
+      const filtered = state.tournaments.filter(t => currentFilter === 'ALL' ? true : t.status === currentFilter);
+      const secMatches = document.getElementById('secMatches');
+      secMatches.innerHTML = filtered.map(t => {
+        const isJoined = t.participants.some(p => p.userId === activeUser.id);
+        const pct = Math.min(100, Math.round((t.participants.length / t.maxSlots) * 100));
+        const badgeColor = t.status === 'LIVE' ? 'bg-red-500/20 text-red-400 border-red-500/40' :
+                           t.status === 'UPCOMING' ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' :
+                           'bg-slate-700/40 text-slate-300 border-slate-600';
+
+        return `
+          <div class="glass rounded-2xl p-5 flex flex-col justify-between hover:border-orange-500/40 transition">
+            <div>
+              <div class="flex items-center justify-between gap-2 mb-3">
+                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${badgeColor}">${t.status}</span>
+                <span class="text-xs text-slate-400 flex items-center gap-1">⏰ ${t.time}</span>
+              </div>
+              <h3 class="font-extrabold text-base text-white">${t.title}</h3>
+              <div class="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">🗺️ ${t.map}</span>
+                <span class="bg-slate-900 px-2.5 py-1 rounded border border-slate-800">👥 ${t.mode}</span>
+              </div>
+
+              <!-- Prize Metrics -->
+              <div class="grid grid-cols-3 gap-2 my-4 bg-slate-900/90 p-3 rounded-xl border border-slate-800 text-center">
+                <div>
+                  <span class="text-[10px] uppercase text-slate-400 block">Prize Pool</span>
+                  <span class="text-sm font-extrabold text-amber-400">৳${t.prizePool}</span>
+                </div>
+                <div class="border-x border-slate-800">
+                  <span class="text-[10px] uppercase text-slate-400 block">Per Kill</span>
+                  <span class="text-sm font-extrabold text-emerald-400">৳${t.perKill}</span>
+                </div>
+                <div>
+                  <span class="text-[10px] uppercase text-slate-400 block">Entry Fee</span>
+                  <span class="text-sm font-extrabold text-orange-400">${t.entryFee === 0 ? 'FREE' : '৳' + t.entryFee}</span>
+                </div>
+              </div>
+
+              <!-- Room ID Box (Only visible if player joined) -->
+              ${isJoined ? `
+                <div class="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs">
+                  <div class="font-bold text-emerald-400 mb-1 flex items-center justify-between">
+                    <span>✅ Joined — Custom Room Credentials</span>
+                  </div>
+                  ${t.roomId ? `
+                    <div class="flex items-center justify-between bg-slate-950 px-3 py-2 rounded-lg mt-1">
+                      <span>ID: <strong class="text-white font-mono">${t.roomId}</strong> | Pass: <strong class="text-orange-400 font-mono">${t.roomPass || 'None'}</strong></span>
+                      <button onclick="copyText('${t.roomId}', 'Room ID')" class="text-emerald-400 hover:underline font-semibold">Copy ID</button>
+                    </div>
+                  ` : `<p class="text-slate-300">Room ID & Password will be published here 15 mins before match start.</p>`}
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Slot Progress & Join Button -->
+            <div>
+              <div class="flex justify-between text-xs text-slate-400 mb-1">
+                <span>Slots Filled: <strong class="text-white">${t.participants.length}/${t.maxSlots}</strong></span>
+                <span>${t.maxSlots - t.participants.length} left</span>
+              </div>
+              <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
+                <div class="h-full bg-gradient-to-r from-orange-500 to-red-500" style="width: ${pct}%"></div>
+              </div>
+
+              ${isJoined ? `
+                <button disabled class="w-full py-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold text-sm cursor-default">
+                  ✓ Registered (${activeUser.ign})
+                </button>
+              ` : t.status === 'COMPLETED' ? `
+                <button disabled class="w-full py-2.5 rounded-xl bg-slate-800 text-slate-500 font-bold text-sm cursor-not-allowed">
+                  Match Ended
+                </button>
+              ` : `
+                <button onclick="joinTournament('${t.id}')" class="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm shadow-lg shadow-orange-500/20 transition">
+                  Join Match Now (${t.entryFee === 0 ? 'Free' : '৳' + t.entryFee})
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // 4. Render My Joined Tab
+      const secMyMatches = document.getElementById('secMyMatches');
+      if (myJoined.length === 0) {
+        secMyMatches.innerHTML = `<div class="glass rounded-2xl p-8 text-center text-slate-400">You haven't joined any tournaments yet. Head to the Tournaments tab to join!</div>`;
+      } else {
+        secMyMatches.innerHTML = myJoined.map(t => {
+          const me = t.participants.find(p => p.userId === activeUser.id);
+          return `
+            <div class="glass rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span class="text-xs font-bold text-orange-400">${t.status} • ${t.time}</span>
+                <h4 class="font-bold text-lg text-white">${t.title}</h4>
+                <p class="text-xs text-slate-400">Registered IGN: <strong class="text-white">${me.ign}</strong> (UID: ${me.uid}) | Kills: <strong class="text-emerald-400">${me.kills}</strong> | Prize Won: <strong class="text-amber-400">৳${me.paidPrize || 0}</strong></p>
+              </div>
+              <div class="bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs">
+                ${t.roomId ? `
+                  <div>Room ID: <strong class="text-white font-mono">${t.roomId}</strong></div>
+                  <div>Password: <strong class="text-orange-400 font-mono">${t.roomPass}</strong></div>
+                ` : `<span class="text-amber-400">Waiting for Admin to publish Room ID...</span>`}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 5. Render Player Wallet Transactions
+      const myTxs = state.transactions.filter(tx => tx.userId === activeUser.id);
+      document.getElementById('playerTxList').innerHTML = myTxs.length === 0
+        ? `<p class="text-xs text-slate-400">No transactions yet.</p>`
+        : myTxs.map(tx => {
+            const stColor = tx.status === 'APPROVED' ? 'text-emerald-400 bg-emerald-500/10' :
+                            tx.status === 'PENDING' ? 'text-amber-400 bg-amber-500/10' : 'text-red-400 bg-red-500/10';
+            return `
+              <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs">
+                <div>
+                  <span class="font-bold text-white">${tx.type} (${tx.method})</span>
+                  <p class="text-slate-400">${tx.ref} • ${tx.time}</p>
+                </div>
+                <div class="text-right">
+                  <p class="font-extrabold text-sm ${tx.amount > 0 ? 'text-emerald-400' : 'text-orange-400'}">${tx.amount > 0 ? '+' : ''}৳${tx.amount}</p>
+                  <span class="text-[10px] px-2 py-0.5 rounded font-semibold ${stColor}">${tx.status}</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+      // 6. Render Admin Stats & Lists
+      document.getElementById('statTotalMatches').textContent = state.tournaments.length;
+      document.getElementById('statTotalPlayers').textContent = state.users.length;
+      const pendingTxs = state.transactions.filter(t => t.status === 'PENDING');
+      document.getElementById('statPendingTx').textContent = pendingTxs.length;
+
+      document.getElementById('adminMatchesList').innerHTML = state.tournaments.map(t => `
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="font-bold text-sm text-white">${t.title}</h4>
+              <p class="text-xs text-slate-400">${t.map} • ${t.mode} • Fee: ৳${t.entryFee} • Prize: ৳${t.prizePool} • Joined: <strong>${t.participants.length}/${t.maxSlots}</strong></p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="openPlayersModal('${t.id}')" class="bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 text-xs font-bold px-3 py-1.5 rounded-lg">
+                👥 Players & Payout (${t.participants.length})
+              </button>
+              <button onclick="adminDeleteMatch('${t.id}')" class="bg-red-500/15 hover:bg-red-500/30 text-red-400 text-xs px-2.5 py-1.5 rounded-lg">Delete</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800 text-xs">
+            <input id="rid_${t.id}" type="text" value="${t.roomId}" placeholder="Room ID" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+            <input id="rpass_${t.id}" type="text" value="${t.roomPass}" placeholder="Room Password" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white" />
+            <select id="rstat_${t.id}" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white">
+              <option value="UPCOMING" ${t.status === 'UPCOMING' ? 'selected' : ''}>UPCOMING</option>
+              <option value="LIVE" ${t.status === 'LIVE' ? 'selected' : ''}>LIVE (Room Ready)</option>
+              <option value="COMPLETED" ${t.status === 'COMPLETED' ? 'selected' : ''}>COMPLETED</option>
+            </select>
+            <button onclick="adminUpdateRoom('${t.id}')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg py-1.5">
+              Save Room / Status
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('adminTxList').innerHTML = pendingTxs.length === 0
+        ? `<p class="text-xs text-slate-400">No pending bKash/Nagad requests right now.</p>`
+        : pendingTxs.map(tx => `
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div>
+                <span class="font-bold text-white">${tx.ign}</span> requested <strong class="text-orange-400">${tx.type}</strong> of <strong class="text-emerald-400">৳${tx.amount}</strong> via <strong>${tx.method}</strong>
+                <p class="text-slate-400 font-mono mt-0.5">Ref / TrxID: ${tx.ref}</p>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="adminHandleTx('${tx.id}', 'APPROVED')" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg">Approve</button>
+                <button onclick="adminHandleTx('${tx.id}', 'REJECTED')" class="bg-red-600/30 hover:bg-red-600/50 text-red-300 font-semibold px-3 py-1.5 rounded-lg">Reject</button>
+              </div>
+            </div>
+          `).join('');
+
+      lucide.createIcons();
+    }
+
+    // Boot App
+    initFirebaseIfConfigured();
+    renderAll();
+  </script>
+</body>
+</html>
